@@ -16,12 +16,13 @@ class Channel::Driver::Smtp
       authentication:       nil, # nil, autodetection - to use certain schema use 'plain', 'login' or 'cram_md5'
     },
     mail_attributes,
+    channel,
     notification
   )
 
 =end
 
-  def send(options, attr, notification = false)
+  def send(options, attr, channel = nil, notification = false)
 
     # return if we run import mode
     return if Setting.get('import_mode')
@@ -73,6 +74,12 @@ class Channel::Driver::Smtp
       smtp_params[:authentication] = options[:authentication]
     end
     mail.delivery_method :smtp, smtp_params
+
+    if !notification && !channel.nil? && !channel.options.nil? && channel.options[:inbound].present?
+      instance = Channel::Driver::Imap.new
+      instance.place_reply(channel.options[:inbound][:options], mail)
+    end
+
     mail.deliver
   end
 end

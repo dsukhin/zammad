@@ -232,6 +232,7 @@ returns
         ticket = Ticket.new(
           group_id: group.id,
           title: title,
+          created_at: mail[:date],
           preferences: preferences,
         )
         set_attributes_by_x_headers(ticket, 'ticket', mail)
@@ -253,6 +254,7 @@ returns
           to: mail[:to],
           cc: mail[:cc],
           subject: mail[:subject],
+          created_at: mail[:date],
           message_id: mail[:message_id],
           internal: false,
         )
@@ -464,6 +466,21 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
 
   private
 
+  def get_other_date_options(imported_fields)
+    date = nil
+
+    date = Time.zone.parse(imported_fields['date']) if imported_fields['date'].present?
+    return date if date.present?
+
+    date = Time.zone.parse(imported_fields['delivery-date']) if imported_fields['delivery-date'].present?
+    return date if date.present?
+
+    received_header_date = imported_fields['received'].to_s.split('; ')[1]
+    date = Time.zone.parse(received_header_date) if imported_fields['received'].present?
+    return date if date.present?
+
+  end
+
   def message_header_hash(mail)
     imported_fields = mail.header.fields.map do |f|
       value = begin
@@ -482,7 +499,7 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
                                             .transform_values { |v| v.match?(EMAIL_REGEX) ? v : '' }
       h.merge!(validated_recipients)
 
-      h['date']            = Time.zone.parse(mail.date.to_s) || imported_fields['date']
+      h['date']            = Time.zone.parse(mail.date.to_s) || get_other_date_options(imported_fields)
       h['message_id']      = imported_fields['message-id']
       h['subject']         = imported_fields['subject']&.sub(/^=\?us-ascii\?Q\?(.+)\?=$/, '\1')
       h['x-any-recipient'] = validated_recipients.values.select(&:present?).join(', ')
