@@ -74,7 +74,7 @@ class Channel::EmailParser
 
     message_attributes = [
       { mail_instance: mail },
-      message_header_hash(mail),
+      message_header_hash(mail, msg),
       message_body_hash(mail),
       self.class.sender_attributes(mail),
     ]
@@ -481,7 +481,21 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
 
   end
 
-  def message_header_hash(mail)
+  def generate_message_id(imported_fields, msg)
+    if imported_fields['from']
+      begin
+        fqdn = Mail::Address.new(imported_fields['from']).domain
+      rescue
+        fqdn = nil
+      end
+    end
+    if fqdn.blank?
+      fqdn = 'zammad_generated'
+    end
+    '<gen-' + Digest::MD5.hexdigest(msg) + '@' + fqdn.strip + '>'
+  end
+
+  def message_header_hash(mail, msg)
     imported_fields = mail.header.fields.map do |f|
       value = begin
                 f.to_utf8
@@ -500,7 +514,7 @@ process unprocessable_mails (tmp/unprocessable_mail/*.eml) again
       h.merge!(validated_recipients)
 
       h['date']            = Time.zone.parse(mail.date.to_s) || get_other_date_options(imported_fields)
-      h['message_id']      = imported_fields['message-id']
+      h['message_id']      = imported_fields['message-id'] || generate_message_id(imported_fields, msg)
       h['subject']         = imported_fields['subject']&.sub(/^=\?us-ascii\?Q\?(.+)\?=$/, '\1')
       h['x-any-recipient'] = validated_recipients.values.select(&:present?).join(', ')
     end
