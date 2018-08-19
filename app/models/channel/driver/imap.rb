@@ -133,16 +133,22 @@ example
     @imap.create(target_mailbox) if !@imap.list('', target_mailbox)
     @imap.append(target_mailbox, mail.to_s, [:Seen])
 
-    @imap.select(main_folder)
     mail.header.fields.each do |field|
       next if field.name != 'In-Reply-To'
-
       search_message_id = field.value
+
+      @imap.select(main_folder)
       replied_message_id = @imap.search(['HEADER', 'Message-ID', search_message_id])[0]
 
-      if !replied_message_id.nil?
+      if replied_message_id.blank?
+        @imap.select(target_mailbox)
+        replied_message_id = @imap.search(['HEADER', 'Message-ID', search_message_id])[0]
+      end
+
+      if replied_message_id.present?
         @imap.store(replied_message_id, '+FLAGS', [:Answered])
       end
+
       break
     end
 
